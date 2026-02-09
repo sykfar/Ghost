@@ -49,5 +49,8 @@ module.exports = function apiRoutes() {
     router.get('/search-index/authors', mw.authenticatePublic, http(api.searchIndexPublic.fetchAuthors));
     router.get('/search-index/tags', mw.authenticatePublic, http(api.searchIndexPublic.fetchTags));
 
+    // ## Shared Trips (Snowelephant)
+    router.get('/trips/:share_token', mw.authenticatePublic, http(api.tripsPublic.read));
+
     return router;
 };

@@ -69,7 +69,13 @@ const tokenPermissionCheck = function tokenPermissionCheck(req, res, next) {
         settings: ['GET'],
         comments: ['GET', 'POST', 'PUT'],
         oembed: ['GET'],
-        'search-index': ['GET']
+        'search-index': ['GET'],
+        trips: ['GET', 'PUT', 'DELETE', 'POST'],
+        waypoints: ['GET', 'PUT', 'DELETE', 'POST'],
+        'trip-routes': ['GET', 'POST'],
+        'trip-reviews': ['GET', 'PUT', 'DELETE', 'POST'],
+        'trip-photos': ['GET', 'PUT', 'DELETE', 'POST'],
+        'member-preferences': ['GET', 'PUT']
     };
 
     const match = req.url.match(/^\/([^/?]+)\/?/);

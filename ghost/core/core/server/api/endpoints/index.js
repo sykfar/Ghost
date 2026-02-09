@@ -237,6 +237,35 @@ module.exports = {
         return apiFramework.pipeline(require('./search-index'), localUtils);
     },
 
+    // ## Trip Planner (Snowelephant)
+    get trips() {
+        return apiFramework.pipeline(require('./trips'), localUtils);
+    },
+
+    get waypoints() {
+        return apiFramework.pipeline(require('./waypoints'), localUtils);
+    },
+
+    get tripRoutes() {
+        return apiFramework.pipeline(require('./trip-routes'), localUtils);
+    },
+
+    get tripReviews() {
+        return apiFramework.pipeline(require('./trip-reviews'), localUtils);
+    },
+
+    get tripPhotos() {
+        return apiFramework.pipeline(require('./trip-photos'), localUtils);
+    },
+
+    get memberPreferences() {
+        return apiFramework.pipeline(require('./member-preferences'), localUtils);
+    },
+
+    get tripExport() {
+        return apiFramework.pipeline(require('./trip-export'), localUtils);
+    },
+
     /**
      * Content API Controllers
      *
@@ -291,5 +320,9 @@ module.exports = {
 
     get searchIndexPublic() {
         return apiFramework.pipeline(require('./search-index-public'), localUtils, 'content');
+    },
+
+    get tripsPublic() {
+        return apiFramework.pipeline(require('./trips-public'), localUtils, 'content');
     }
 };

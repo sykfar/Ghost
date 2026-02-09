@@ -402,5 +402,43 @@ module.exports = function apiRoutes() {
     router.get('/search-index/tags', mw.authAdminApi, http(api.searchIndex.fetchTags));
     router.get('/search-index/users', mw.authAdminApi, http(api.searchIndex.fetchUsers));
 
+    // ## Trips (Snowelephant)
+    router.get('/trips', mw.authAdminApi, http(api.trips.browse));
+    router.post('/trips', mw.authAdminApi, http(api.trips.add));
+    router.get('/trips/:id', mw.authAdminApi, http(api.trips.read));
+    router.put('/trips/:id', mw.authAdminApi, http(api.trips.edit));
+    router.del('/trips/:id', mw.authAdminApi, http(api.trips.destroy));
+    router.post('/trips/:id/clone', mw.authAdminApi, http(api.trips.clone));
+    router.post('/trips/:id/share', mw.authAdminApi, http(api.trips.share));
+    router.get('/trips/:id/export', mw.authAdminApi, require('../../../../api/endpoints/trip-export').handler);
+
+    // ## Waypoints
+    router.get('/trips/:trip_id/waypoints', mw.authAdminApi, http(api.waypoints.browse));
+    router.post('/trips/:trip_id/waypoints', mw.authAdminApi, http(api.waypoints.add));
+    router.get('/waypoints/:id', mw.authAdminApi, http(api.waypoints.read));
+    router.put('/waypoints/:id', mw.authAdminApi, http(api.waypoints.edit));
+    router.del('/waypoints/:id', mw.authAdminApi, http(api.waypoints.destroy));
+    router.put('/trips/:trip_id/waypoints/order', mw.authAdminApi, http(api.waypoints.reorder));
+
+    // ## Trip Routes
+    router.post('/trips/:trip_id/route/calculate', mw.authAdminApi, http(api.tripRoutes.calculate));
+    router.get('/trips/:trip_id/route', mw.authAdminApi, http(api.tripRoutes.read));
+    router.get('/trips/:trip_id/route/feasibility', mw.authAdminApi, http(api.tripRoutes.feasibility));
+
+    // ## Trip Reviews
+    router.get('/trips/:trip_id/reviews', mw.authAdminApi, http(api.tripReviews.browse));
+    router.post('/trips/:trip_id/reviews', mw.authAdminApi, http(api.tripReviews.add));
+    router.put('/trip-reviews/:id', mw.authAdminApi, http(api.tripReviews.edit));
+    router.del('/trip-reviews/:id', mw.authAdminApi, http(api.tripReviews.destroy));
+
+    // ## Trip Photos
+    router.get('/trips/:trip_id/photos', mw.authAdminApi, http(api.tripPhotos.browse));
+    router.post('/trips/:trip_id/photos', mw.authAdminApi, http(api.tripPhotos.add));
+    router.del('/trip-photos/:id', mw.authAdminApi, http(api.tripPhotos.destroy));
+
+    // ## Member Preferences
+    router.get('/members/:member_id/preferences', mw.authAdminApi, http(api.memberPreferences.read));
+    router.put('/members/:member_id/preferences', mw.authAdminApi, http(api.memberPreferences.edit));
+
     return router;
 };
