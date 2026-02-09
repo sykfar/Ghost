@@ -7,6 +7,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import i18nLib from '@tryghost/i18n';
 import setupGhostApi from './utils/api';
 import {ActionHandler, SyncActionHandler, isSyncAction} from './actions';
+import {AdminActionsProvider} from './components/admin-actions';
 import {AppContext, Comment, DispatchActionType, EditableAppContext} from './app-context';
 import {CommentApiProvider, useCommentApi} from './components/comment-api-provider';
 import {CommentsFrame} from './components/frame';
@@ -349,13 +350,15 @@ const AppContent: React.FC<{
     const done = state.initStatus === 'success';
 
     return (
-        <AppContext.Provider value={context}>
-            <CommentsFrame ref={iframeRef}>
-                <ContentBox done={done} />
-            </CommentsFrame>
-            {state.comments.length > 0 ? <AuthFrame adminUrl={options.adminUrl} onLoad={() => initAdminAuth(state.member?.uuid)}/> : null}
-            <PopupBox />
-        </AppContext.Provider>
+        <AdminActionsProvider setState={setState}>
+            <AppContext.Provider value={context}>
+                <CommentsFrame ref={iframeRef}>
+                    <ContentBox done={done} />
+                </CommentsFrame>
+                {state.comments.length > 0 ? <AuthFrame adminUrl={options.adminUrl} onLoad={() => initAdminAuth(state.member?.uuid)}/> : null}
+                <PopupBox />
+            </AppContext.Provider>
+        </AdminActionsProvider>
     );
 };
 
