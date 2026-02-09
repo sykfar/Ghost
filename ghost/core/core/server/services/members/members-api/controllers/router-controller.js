@@ -33,6 +33,12 @@ const messages = {
     failedToVerifyCode: 'Failed to verify code, please try again.'
 };
 
+const GHOST_SIGNUP_FLOWS = {
+    DIRECT_CHECKOUT: 'direct_checkout',
+    PRE_CHECKOUT_MAGIC_LINK: 'pre_checkout_magic_link',
+    AUTHENTICATED_MEMBER_CHECKOUT: 'authenticated_member_checkout'
+};
+
 // helper utility for logic shared between sendMagicLink and verifyOTC
 function extractRefererOrRedirect(req) {
     const {autoRedirect, redirect} = req.body;
@@ -466,6 +472,7 @@ module.exports = class RouterController {
         }
 
         const member = options.member;
+        let ghostSignupFlow = (options.isAuthenticated && member) ? GHOST_SIGNUP_FLOWS.AUTHENTICATED_MEMBER_CHECKOUT : GHOST_SIGNUP_FLOWS.DIRECT_CHECKOUT;
 
         if (!member && options.email) {
             // Create a signup link if there is no member with this email address
@@ -482,6 +489,7 @@ module.exports = class RouterController {
                 // Redirect to the original success url after sign up
                 referrer: options.successUrl
             });
+            ghostSignupFlow = GHOST_SIGNUP_FLOWS.PRE_CHECKOUT_MAGIC_LINK;
         }
 
         if (member) {
@@ -505,6 +513,9 @@ module.exports = class RouterController {
                 });
             }
         }
+
+        // Set by server to distinguish between checkout flows in Stripe webhooks.
+        options.metadata.ghostSignupFlow = ghostSignupFlow;
 
         try {
             const paymentLink = await this._paymentsService.getPaymentLink(options);
