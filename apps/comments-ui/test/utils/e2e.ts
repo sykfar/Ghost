@@ -86,10 +86,44 @@ export async function mockAdminAuthFrame({admin, page}) {
     });
 }
 
+function authFrameNonAdmin() {
+    // Simulates a non-admin auth frame - responds to messages but returns
+    // null/error for getUser(), making the user appear as non-admin
+    window.addEventListener('message', async function (event) {
+        let data: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+        try {
+            data = JSON.parse(event.data) || {};
+        } catch (err) {
+            return;
+        }
+
+        if (!data) {
+            return;
+        }
+
+        function respond(error, result) {
+            event.source!.postMessage(JSON.stringify({
+                uid: data.uid,
+                error: error?.message,
+                result
+            }));
+        }
+
+        // Return null for getUser to simulate non-admin
+        if (data.action === 'getUser') {
+            respond(null, null);
+        }
+    });
+}
+
 export async function mockAdminAuthFrame204({admin, page}) {
+    // Return a page that responds to messages but returns null for getUser(),
+    // simulating a non-admin user. This allows the auth flow to complete
+    // (unlike 204 which may not trigger onLoad, or an empty page which hangs).
     await page.route(admin + 'auth-frame/', async (route) => {
         await route.fulfill({
-            status: 204
+            status: 200,
+            body: `<html><head><meta charset="UTF-8" /></head><body><script>${authFrameNonAdmin.toString()}; authFrameNonAdmin();</script></body></html>`
         });
     });
 }
@@ -166,7 +200,7 @@ export async function initialize({mockedApi, page, bodyStyle, labs = {}, key = '
 
     const commentsFrameSelector = 'iframe[title="comments-frame"]';
 
-    await page.waitForSelector('iframe');
+    await page.waitForSelector(commentsFrameSelector);
 
     // wait for data to be loaded because our tests expect it
     const iframeElement = await page.locator(commentsFrameSelector).elementHandle();

@@ -1,5 +1,7 @@
-import {AddComment, Comment, Member} from '../app-context';
-import {AdminApi} from '../utils/admin-api';
+import AuthFrame from '../auth-frame';
+import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import {AddComment, Comment, LabsContextType, Member} from '../app-context';
+import {AdminApi, setupAdminAPI} from '../utils/admin-api';
 import {GhostApi} from '../utils/api';
 
 type BaseCommentApi = {
@@ -27,7 +29,9 @@ export type AdminCommentApi = BaseCommentApi & {
 
 export type CommentApi = MemberCommentApi | AdminCommentApi;
 
-export function createCommentApi(api: GhostApi, adminApi: AdminApi | null, memberUuid?: string): CommentApi {
+const ALLOWED_MODERATORS = ['Owner', 'Administrator', 'Super Editor'];
+
+function createCommentApi(api: GhostApi, adminApi: AdminApi | null, memberUuid?: string): CommentApi {
     if (adminApi) {
         return {
             isAdmin: true,
@@ -59,4 +63,86 @@ export function createCommentApi(api: GhostApi, adminApi: AdminApi | null, membe
         report: p => api.comments.report(p),
         updateMember: data => api.member.update(data)
     };
+}
+
+type MemberData = {
+    member: Member | null;
+    labs: LabsContextType;
+    supportEmail: string | null;
+};
+
+type CommentApiContextType = {
+    commentApi: CommentApi;
+    member: Member | null;
+    labs: LabsContextType;
+    supportEmail: string | null;
+};
+
+const CommentApiContext = createContext<CommentApiContextType | null>(null);
+
+export function useCommentApi(): CommentApiContextType {
+    const context = useContext(CommentApiContext);
+    if (!context) {
+        throw new Error('useCommentApi must be used within a CommentApiProvider');
+    }
+    return context;
+}
+
+type CommentApiProviderProps = {
+    children: React.ReactNode;
+    api: GhostApi;
+    adminUrl: string | undefined;
+};
+
+export function CommentApiProvider({children, api, adminUrl}: CommentApiProviderProps) {
+    const [memberData, setMemberData] = useState<MemberData | null>(null);
+    const [adminApi, setAdminApi] = useState<AdminApi | null | undefined>(adminUrl ? undefined : null);
+
+    useEffect(() => {
+        api.init()
+            .then(setMemberData)
+            .catch((e) => {
+                // eslint-disable-next-line no-console
+                console.error(`[Comments] Failed to initialize member:`, e);
+                setMemberData({member: null, labs: {}, supportEmail: null});
+            });
+    }, [api]);
+
+    const onAdminAuthLoad = async () => {
+        try {
+            const newAdminApi = setupAdminAPI({adminUrl: adminUrl!});
+            const admin = await newAdminApi.getUser();
+            const isAllowed = admin?.roles?.some((role: {name: string}) => ALLOWED_MODERATORS.includes(role.name));
+            setAdminApi(isAllowed ? newAdminApi : null);
+        } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn(`[Comments] Admin auth failed:`, e);
+            setAdminApi(null);
+        }
+    };
+
+    const resolved = memberData !== null && adminApi !== undefined;
+
+    const contextValue = useMemo(() => {
+        if (!resolved) {
+            return null;
+        }
+        return {
+            commentApi: createCommentApi(api, adminApi, memberData.member?.uuid),
+            member: memberData.member,
+            labs: memberData.labs,
+            supportEmail: memberData.supportEmail
+        };
+    }, [resolved, api, adminApi, memberData]);
+
+    return (
+        <>
+            {adminUrl && <AuthFrame adminUrl={adminUrl} onLoad={onAdminAuthLoad} />}
+            {contextValue && (
+                <CommentApiContext.Provider value={contextValue}>
+                    {children}
+                </CommentApiContext.Provider>
+            )}
+        </>
+    );
 }
