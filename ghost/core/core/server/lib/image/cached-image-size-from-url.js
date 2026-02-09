@@ -24,7 +24,7 @@ class CachedImageSizeFromUrl {
      * @param {Object} options.cache - cache store instance
      */
     constructor({getImageSizeFromUrl, cache}) {
-        this.getImageSizeFromUrl = getImageSizeFromUrl;
+        this._getImageSizeFromUrl = getImageSizeFromUrl;
         this.cache = cache;
     }
 
@@ -49,7 +49,7 @@ class CachedImageSizeFromUrl {
             return cachedImageSize;
         } else {
             try {
-                const res = await this.getImageSizeFromUrl(url);
+                const res = await this._getImageSizeFromUrl(url);
                 await this.cache.set(url, res);
 
                 debug('Cached image:', url);
