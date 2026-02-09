@@ -116,4 +116,121 @@ describe('lib/image: image size cache', function () {
 
         assert.equal(result, undefined);
     });
+
+    describe('getImageSizeFromUrl', function () {
+        it('should return cached dimensions on cache hit', async function () {
+            const url = 'http://mysite.com/content/image/photo.jpg';
+
+            sizeOfStub.resolves({width: 800, height: 600, type: 'jpg'});
+
+            const cacheStore = new InMemoryCache();
+            const cachedImageSizeFromUrl = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: sizeOfStub,
+                cache: cacheStore
+            });
+
+            // Populate cache via first call
+            await cachedImageSizeFromUrl.getImageSizeFromUrl(url);
+            assert.equal(sizeOfStub.calledOnce, true);
+
+            // Second call should return from cache without fetching
+            const result = await cachedImageSizeFromUrl.getImageSizeFromUrl(url);
+            assert.equal(sizeOfStub.calledOnce, true); // still only one call
+            assert.equal(result.width, 800);
+            assert.equal(result.height, 600);
+        });
+
+        it('should fetch and write back to cache on cache miss', async function () {
+            const url = 'http://mysite.com/content/image/photo.jpg';
+
+            sizeOfStub.resolves({width: 1024, height: 768, type: 'png'});
+
+            const cacheStore = new InMemoryCache();
+            const cachedImageSizeFromUrl = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: sizeOfStub,
+                cache: cacheStore
+            });
+
+            const result = await cachedImageSizeFromUrl.getImageSizeFromUrl(url);
+
+            assert.equal(result.width, 1024);
+            assert.equal(result.height, 768);
+            assert.equal(sizeOfStub.calledOnce, true);
+
+            // Verify it was written to cache
+            const cached = cacheStore.get(url);
+            assert.equal(cached.width, 1024);
+            assert.equal(cached.height, 768);
+        });
+
+        it('should retry fetch when cache has an error entry (no dimensions)', async function () {
+            const url = 'http://mysite.com/content/image/photo.jpg';
+
+            sizeOfStub.resolves({width: 500, height: 400, type: 'jpg'});
+
+            const cacheStore = new InMemoryCache();
+            // Pre-populate cache with an error entry (no width/height)
+            cacheStore.set(url, {url});
+
+            const cachedImageSizeFromUrl = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: sizeOfStub,
+                cache: cacheStore
+            });
+
+            const result = await cachedImageSizeFromUrl.getImageSizeFromUrl(url);
+
+            assert.equal(result.width, 500);
+            assert.equal(result.height, 400);
+            assert.equal(sizeOfStub.calledOnce, true);
+
+            // Verify cache was overwritten with valid dimensions
+            const cached = cacheStore.get(url);
+            assert.equal(cached.width, 500);
+            assert.equal(cached.height, 400);
+        });
+
+        it('should throw on fetch error', async function () {
+            const url = 'http://mysite.com/content/image/broken.jpg';
+
+            sizeOfStub.rejects(new errors.InternalServerError({
+                message: 'Request timed out.',
+                code: 'IMAGE_SIZE_URL'
+            }));
+
+            const cacheStore = new InMemoryCache();
+            const cachedImageSizeFromUrl = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: sizeOfStub,
+                cache: cacheStore
+            });
+
+            await assert.rejects(
+                () => cachedImageSizeFromUrl.getImageSizeFromUrl(url),
+                (err) => {
+                    assert.equal(err.code, 'IMAGE_SIZE_URL');
+                    return true;
+                }
+            );
+        });
+
+        it('should not write error entries to cache on fetch failure', async function () {
+            const url = 'http://mysite.com/content/image/broken.jpg';
+
+            sizeOfStub.rejects(new Error('Network error'));
+
+            const cacheStore = new InMemoryCache();
+            const cachedImageSizeFromUrl = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: sizeOfStub,
+                cache: cacheStore
+            });
+
+            try {
+                await cachedImageSizeFromUrl.getImageSizeFromUrl(url);
+            } catch (e) {
+                // expected
+            }
+
+            // Cache should NOT have an entry — errors are not cached
+            assert.equal(cacheStore.get(url), undefined);
+        });
+    });
 });

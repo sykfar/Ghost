@@ -9,6 +9,8 @@ const sinon = require('sinon');
 const logging = require('@tryghost/logging');
 const {HtmlValidate} = require('html-validate');
 const crypto = require('crypto');
+const CachedImageSizeFromUrl = require('../../../../../core/server/lib/image/cached-image-size-from-url');
+const InMemoryCache = require('../../../../../core/server/adapters/cache/MemoryCache');
 
 async function validateHtml(html) {
     const htmlvalidate = new HtmlValidate({
@@ -3112,6 +3114,118 @@ describe('Email renderer', function () {
             const response = await emailRenderer.limitImageWidth('https://example.com/image.png');
             assert.equal(response.width, 300);
             assert.equal(response.href, 'https://example.com/image.png');
+        });
+
+        it('Uses cached image dimensions on cache hit', async function () {
+            const underlyingFetch = sinon.stub().resolves({width: 2000, height: 1000});
+            const cacheStore = new InMemoryCache();
+            // Pre-populate cache
+            cacheStore.set('https://example.com/image.png', {url: 'https://example.com/image.png', width: 2000, height: 1000});
+
+            const cachedImageSize = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: underlyingFetch,
+                cache: cacheStore
+            });
+
+            const emailRenderer = new EmailRenderer({
+                imageSize: cachedImageSize,
+                storageUtils: {
+                    isLocalImage() {
+                        return false;
+                    }
+                }
+            });
+
+            const response = await emailRenderer.limitImageWidth('https://example.com/image.png');
+            assert.equal(response.width, 600);
+            assert.equal(response.height, 300);
+            // Underlying fetch should not be called when cache has the data
+            sinon.assert.notCalled(underlyingFetch);
+        });
+
+        it('Falls back to fetching image dimensions on cache miss and writes back to cache', async function () {
+            const underlyingFetch = sinon.stub().resolves({width: 2000, height: 1000});
+            const cacheStore = new InMemoryCache();
+
+            const cachedImageSize = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: underlyingFetch,
+                cache: cacheStore
+            });
+
+            const emailRenderer = new EmailRenderer({
+                imageSize: cachedImageSize,
+                storageUtils: {
+                    isLocalImage() {
+                        return false;
+                    }
+                }
+            });
+
+            const response = await emailRenderer.limitImageWidth('https://example.com/image.png');
+            assert.equal(response.width, 600);
+            assert.equal(response.height, 300);
+            // Underlying fetch SHOULD be called on cache miss
+            sinon.assert.calledOnce(underlyingFetch);
+            // Result should be written back to cache
+            const cached = cacheStore.get('https://example.com/image.png');
+            assert.ok(cached);
+            assert.ok(cached.width);
+        });
+
+        it('Falls back to fetching when cache has an error entry (no dimensions)', async function () {
+            const underlyingFetch = sinon.stub().resolves({width: 2000, height: 1000});
+            const cacheStore = new InMemoryCache();
+            // Pre-populate cache with an error entry (no width/height)
+            cacheStore.set('https://example.com/image.png', {url: 'https://example.com/image.png'});
+
+            const cachedImageSize = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: underlyingFetch,
+                cache: cacheStore
+            });
+
+            const emailRenderer = new EmailRenderer({
+                imageSize: cachedImageSize,
+                storageUtils: {
+                    isLocalImage() {
+                        return false;
+                    }
+                }
+            });
+
+            const response = await emailRenderer.limitImageWidth('https://example.com/image.png');
+            assert.equal(response.width, 600);
+            assert.equal(response.height, 300);
+            // Should retry the underlying fetch when cache has an error entry
+            sinon.assert.calledOnce(underlyingFetch);
+        });
+
+        it('Returns default dimensions when fetch fails', async function () {
+            const ghosterrors = require('@tryghost/errors');
+            const underlyingFetch = sinon.stub().rejects(new ghosterrors.InternalServerError({
+                message: 'Request timed out.',
+                code: 'IMAGE_SIZE_URL'
+            }));
+            const cacheStore = new InMemoryCache();
+
+            const cachedImageSize = new CachedImageSizeFromUrl({
+                getImageSizeFromUrl: underlyingFetch,
+                cache: cacheStore
+            });
+
+            const emailRenderer = new EmailRenderer({
+                imageSize: cachedImageSize,
+                storageUtils: {
+                    isLocalImage() {
+                        return false;
+                    }
+                }
+            });
+
+            const response = await emailRenderer.limitImageWidth('https://example.com/broken.png');
+            // limitImageWidth catches the error and returns fallback dimensions
+            assert.equal(response.href, 'https://example.com/broken.png');
+            assert.equal(response.width, 0);
+            assert.equal(response.height, null);
         });
     });
     describe('additional i18n tests', function () {

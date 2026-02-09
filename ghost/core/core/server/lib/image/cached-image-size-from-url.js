@@ -29,8 +29,9 @@ class CachedImageSizeFromUrl {
     }
 
     /**
-     * Get cached image size from URL
-     * Always returns {object} imageSizeCache
+     * Get cached image size from URL — never throws.
+     * Returns {url} without dimensions on error, suitable for consumers that
+     * gracefully skip images with missing dimensions (e.g. frontend metadata).
      * @param {string} url
      * @returns {Promise<ImageSizeCache>}
      * @description Takes a url and returns image width and height from cache if available.
@@ -71,6 +72,26 @@ class CachedImageSizeFromUrl {
                 return this.cache.get(url);
             }
         }
+    }
+
+    /**
+     * Get image size with cache — throws on error if fetch fails.
+     * @param {string} url
+     * @returns {Promise<ImageSizeCache>}
+     */
+    async getImageSizeFromUrl(url) {
+        const cached = await this.cache.get(url);
+
+        if (cached && cached.width) {
+            debug('Read image from cache:', url);
+            return cached;
+        }
+
+        const result = await this._getImageSizeFromUrl(url);
+        await this.cache.set(url, result);
+
+        debug('Cached image:', url);
+        return result;
     }
 }
 
